@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hormuz Transit Monitor</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;700&display=swap');
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:#0a0a12;color:#b0b8c4;font-family:'IBM Plex Mono',monospace;font-size:12px}
+  #root{max-width:860px;margin:0 auto;padding:16px}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/recharts/2.12.7/Recharts.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
+<script type="text/babel">
+const {useState,useMemo}=React;
+const {ComposedChart,LineChart,Line,XAxis,YAxis,CartesianGrid,Tooltip,ReferenceLine,Area,ResponsiveContainer}=Recharts;
+
+// ═══ REAL IMF PORTWATCH DATA: CHOKEPOINT6, Feb 1 – May 31 2026 ═══
+// Update this array when Tuesday data drops. Format: [date, n_total, n_tanker, n_cargo]
+const RAW=[
+["2026-02-01",80,37,43],["2026-02-02",90,55,35],["2026-02-03",83,45,38],["2026-02-04",77,43,34],
+["2026-02-05",89,46,43],["2026-02-06",82,50,32],["2026-02-07",90,48,42],["2026-02-08",90,49,41],
+["2026-02-09",66,41,25],["2026-02-10",95,59,36],["2026-02-11",82,46,36],["2026-02-12",119,55,64],
+["2026-02-13",110,64,46],["2026-02-14",99,58,41],["2026-02-15",87,50,37],["2026-02-16",95,60,35],
+["2026-02-17",91,43,48],["2026-02-18",113,52,61],["2026-02-19",115,62,53],["2026-02-20",90,54,36],
+["2026-02-21",94,54,40],["2026-02-22",129,72,57],["2026-02-23",103,62,41],["2026-02-24",107,55,52],
+["2026-02-25",109,58,51],["2026-02-26",102,53,49],["2026-02-27",95,53,42],["2026-02-28",76,44,32],
+["2026-03-01",17,7,10],["2026-03-02",4,2,2],["2026-03-03",5,2,3],["2026-03-04",3,0,3],
+["2026-03-05",4,1,3],["2026-03-06",5,0,5],["2026-03-07",7,2,5],["2026-03-08",6,1,5],
+["2026-03-09",9,6,3],["2026-03-10",4,1,3],["2026-03-11",5,1,4],["2026-03-12",8,3,5],
+["2026-03-13",3,3,0],["2026-03-14",3,1,2],["2026-03-15",9,5,4],["2026-03-16",4,0,4],
+["2026-03-17",2,1,1],["2026-03-18",1,0,1],["2026-03-19",3,1,2],["2026-03-20",6,3,3],
+["2026-03-21",0,0,0],["2026-03-22",3,0,3],["2026-03-23",4,2,2],["2026-03-24",2,1,1],
+["2026-03-25",1,1,0],["2026-03-26",5,0,5],["2026-03-27",3,0,3],["2026-03-28",4,0,4],
+["2026-03-29",5,2,3],["2026-03-30",17,12,5],["2026-03-31",6,2,4],
+["2026-04-01",6,0,6],["2026-04-02",6,2,4],["2026-04-03",5,4,1],["2026-04-04",10,2,8],
+["2026-04-05",9,7,2],["2026-04-06",5,1,4],["2026-04-07",4,3,1],["2026-04-08",4,0,4],
+["2026-04-09",9,4,5],["2026-04-10",5,1,4],["2026-04-11",11,5,6],["2026-04-12",8,3,5],
+["2026-04-13",11,4,7],["2026-04-14",10,3,7],["2026-04-15",10,4,6],["2026-04-16",6,3,3],
+["2026-04-17",14,4,10],["2026-04-18",29,16,13],["2026-04-19",4,2,2],["2026-04-20",7,4,3],
+["2026-04-21",3,1,2],["2026-04-22",7,2,5],["2026-04-23",2,0,2],["2026-04-24",8,2,6],
+["2026-04-25",5,1,4],["2026-04-26",5,1,4],["2026-04-27",3,1,2],["2026-04-28",11,3,8],
+["2026-04-29",6,3,3],["2026-04-30",5,3,2],
+["2026-05-01",6,2,4],["2026-05-02",4,2,2],["2026-05-03",5,1,4],["2026-05-04",3,0,3],
+["2026-05-05",1,0,1],["2026-05-06",0,0,0],["2026-05-07",2,1,1],["2026-05-08",0,0,0],
+["2026-05-09",1,1,0],["2026-05-10",4,2,2],["2026-05-11",7,3,4],["2026-05-12",7,3,4],
+["2026-05-13",7,4,3],["2026-05-14",7,4,3],["2026-05-15",4,2,2],["2026-05-16",10,2,8],
+["2026-05-17",2,0,2],["2026-05-18",2,1,1],["2026-05-19",6,4,2],["2026-05-20",12,4,8],
+["2026-05-21",4,2,2],["2026-05-22",5,0,5],["2026-05-23",9,4,5],["2026-05-24",4,2,2],
+["2026-05-25",6,2,4],["2026-05-26",2,0,2],["2026-05-27",5,2,3],["2026-05-28",3,0,3],
+["2026-05-29",3,1,2],["2026-05-30",4,0,4],["2026-05-31",10,2,8],
+];
+
+const data=RAW.map(([date,n_total,n_tanker,n_cargo])=>({
+  date,n_total,n_tanker,n_cargo,
+  short:new Date(date+"T00:00:00").toLocaleDateString("en-NZ",{month:"short",day:"numeric"}),
+}));
+const withMA=data.map((d,i)=>{
+  if(i<6)return{...d,ma7:null};
+  const s=data.slice(i-6,i+1).reduce((a,x)=>a+x.n_total,0);
+  return{...d,ma7:Math.round(s/7*100)/100};
+});
+const crisis=withMA.filter(d=>d.date>="2026-02-20");
+const postStrike=withMA.filter(d=>d.date>="2026-03-01");
+const preCrisis=data.filter(d=>d.date>="2026-02-01"&&d.date<="2026-02-27");
+const preAvg=Math.round(preCrisis.reduce((s,d)=>s+d.n_total,0)/preCrisis.length*10)/10;
+const latestMA=withMA.filter(d=>d.ma7!==null).slice(-1)[0];
+const latestDay=data.slice(-1)[0];
+const crisisMAs=postStrike.filter(d=>d.ma7!==null);
+const peakMA=Math.max(...crisisMAs.map(d=>d.ma7));
+const peakD=crisisMAs.find(d=>d.ma7===peakMA);
+const zeroDays=postStrike.filter(d=>d.n_total===0);
+const deadline=new Date("2026-06-30T23:59:59Z");
+const daysLeft=Math.max(0,Math.ceil((deadline-new Date())/86400000));
+
+function buildDecay(){
+  const pts=[];const rM=16;
+  for(let d=0;d<=daysLeft;d++){
+    const left=daysLeft-d;
+    const ramp=1/(1+Math.exp(-0.5*(left-rM)));
+    const yes=Math.max(1,Math.round(17*ramp*(left/daysLeft)));
+    const no=Math.min(99,100-yes);
+    const profit=Math.max(0,no-84);
+    const dt=new Date();dt.setDate(dt.getDate()+d);
+    pts.push({day:d,date:`${dt.getDate()}/${dt.getMonth()+1}`,daysLeft:left,
+      yesEst:yes,noEst:no,profit,profitPct:((profit/84)*100).toFixed(1),
+      ramp:(ramp*100).toFixed(0)});
+  }
+  return pts;
+}
+
+const Tip=({active,payload,label})=>{
+  if(!active||!payload?.length)return null;
+  return React.createElement("div",{style:{background:"#0e0e16",border:"1px solid #252535",
+    borderRadius:3,padding:"7px 10px",fontSize:10,fontFamily:"'IBM Plex Mono',monospace",color:"#b0b8c4"}},
+    React.createElement("div",{style:{fontWeight:700,color:"#606878",marginBottom:2}},label),
+    payload.filter(p=>p.value!=null).map((p,i)=>
+      React.createElement("div",{key:i,style:{color:p.color}},
+        p.name,": ",React.createElement("b",null,
+          typeof p.value==="number"?(Number.isInteger(p.value)?p.value:p.value.toFixed(2)):p.value)))
+  );
+};
+
+function App(){
+  const[tab,setTab]=useState("chart");
+  const decay=useMemo(buildDecay,[daysLeft]);
+  const s={
+    card:{background:"#0e0e18",border:"1px solid #1a1a2a",borderRadius:3,padding:10,marginBottom:6},
+    lbl:{fontSize:8,color:"#4a5060",textTransform:"uppercase",letterSpacing:"0.12em",fontWeight:500},
+  };
+  const Stat=({label,value,color="#c0c8d4",sub})=>
+    React.createElement("div",{style:s.card},
+      React.createElement("div",{style:s.lbl},label),
+      React.createElement("div",{style:{fontSize:17,fontWeight:700,color,marginTop:2}},value),
+      sub&&React.createElement("div",{style:{fontSize:8,color:"#3a4050",marginTop:1}},sub));
+  const TabBtn=({id,children})=>
+    React.createElement("button",{onClick:()=>setTab(id),style:{
+      fontFamily:"'IBM Plex Mono',monospace",fontSize:10,padding:"5px 12px",cursor:"pointer",
+      background:tab===id?"#0e0e18":"transparent",
+      border:tab===id?"1px solid #1a1a2a":"1px solid transparent",
+      borderBottom:tab===id?"none":"1px solid #1a1a2a",
+      borderRadius:"3px 3px 0 0",color:tab===id?"#4ee8c4":"#3a4050",
+      marginBottom:-1,position:"relative",zIndex:tab===id?1:0}},children);
+
+  return React.createElement("div",null,
+    React.createElement("div",{style:{fontSize:8,letterSpacing:"0.2em",color:"#3a4050",textTransform:"uppercase"}},
+      "IMF PortWatch CHOKEPOINT6 / Polymarket Jun 30 No"),
+    React.createElement("div",{style:{fontSize:15,fontWeight:700,color:"#e0e4ea",marginTop:3,marginBottom:12}},
+      "Hormuz Transit Monitor"),
+    // Stats row 1
+    React.createElement("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:6,marginBottom:6}},
+      React.createElement(Stat,{label:"Latest daily",value:latestDay.n_total,color:"#4ee8c4",sub:latestDay.short}),
+      React.createElement(Stat,{label:"7-day MA",value:latestMA.ma7.toFixed(2),color:"#ef4444",sub:latestMA.short}),
+      React.createElement(Stat,{label:"Target / Gap",value:"60.00",color:"#606878",sub:`${(60-latestMA.ma7).toFixed(1)} ships below`}),
+      React.createElement(Stat,{label:"Days left",value:daysLeft,color:"#f0a030",sub:"to Jun 30"})),
+    // Stats row 2
+    React.createElement("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:6,marginBottom:12}},
+      React.createElement(Stat,{label:"Pre-crisis avg",value:preAvg,color:"#606878",sub:"Feb 1-27"}),
+      React.createElement(Stat,{label:"Crisis peak MA",value:peakMA.toFixed(2),color:"#f0a030",sub:peakD?.short}),
+      React.createElement(Stat,{label:"Zero days",value:zeroDays.length,color:"#ef4444",sub:"since Mar 1"}),
+      React.createElement(Stat,{label:"Throughput",value:`${((latestMA.ma7/preAvg)*100).toFixed(1)}%`,color:"#ef4444",sub:"of normal"})),
+    // Tabs
+    React.createElement("div",{style:{display:"flex",gap:1,borderBottom:"1px solid #1a1a2a"}},
+      React.createElement(TabBtn,{id:"chart"},"Chart"),
+      React.createElement(TabBtn,{id:"table"},"Data"),
+      React.createElement(TabBtn,{id:"decay"},"Decay"),
+      React.createElement(TabBtn,{id:"trade"},"Trade")),
+    // Tab content
+    React.createElement("div",{style:{...s.card,borderTop:"none",borderRadius:"0 3px 3px 3px",marginBottom:0}},
+      tab==="chart"&&React.createElement("div",null,
+        React.createElement("div",{style:{fontSize:9,color:"#4a5060",marginBottom:6}},
+          "Daily transits (teal) and 7-day MA (amber). Red = 60 resolution threshold."),
+        React.createElement(ResponsiveContainer,{width:"100%",height:300},
+          React.createElement(ComposedChart,{data:crisis,margin:{top:5,right:5,left:-18,bottom:0}},
+            React.createElement(CartesianGrid,{strokeDasharray:"2 4",stroke:"#14141e"}),
+            React.createElement(XAxis,{dataKey:"short",tick:{fill:"#2a3040",fontSize:8},
+              interval:Math.max(1,Math.floor(crisis.length/10)),angle:-50,textAnchor:"end",height:42}),
+            React.createElement(YAxis,{tick:{fill:"#2a3040",fontSize:9},domain:[0,140]}),
+            React.createElement(Tooltip,{content:React.createElement(Tip)}),
+            React.createElement(ReferenceLine,{y:60,stroke:"#ef4444",strokeDasharray:"5 3",strokeWidth:1.5}),
+            React.createElement(Area,{type:"monotone",dataKey:"n_total",fill:"#4ee8c4",fillOpacity:0.04,stroke:"none"}),
+            React.createElement(Line,{type:"stepAfter",dataKey:"n_total",stroke:"#4ee8c4",strokeWidth:1,strokeOpacity:0.5,dot:false,name:"Daily"}),
+            React.createElement(Line,{type:"monotone",dataKey:"ma7",stroke:"#f0a030",strokeWidth:2,dot:false,name:"7d MA",connectNulls:true}))),
+        React.createElement("div",{style:{marginTop:10,padding:8,background:"#0a0a10",borderRadius:3,fontSize:10,color:"#707888",lineHeight:1.7}},
+          React.createElement("b",{style:{color:"#c0c8d4"}},"From resolution source: "),
+          `7d MA has never exceeded ${peakMA.toFixed(2)} in 96 days of crisis. `,
+          `Needs 60.00, a ${(peakMA > 0 ? (60/peakMA).toFixed(1) : '?')}x increase from peak. `,
+          `Highest single day: 29 (Apr 18). ${zeroDays.length} days with zero transits.`)),
+
+      tab==="table"&&React.createElement("div",null,
+        React.createElement("div",{style:{fontSize:9,color:"#4a5060",marginBottom:6}},"Last 30 days. Exact resolution source data."),
+        React.createElement("div",{style:{overflowX:"auto",maxHeight:380,overflowY:"auto"}},
+          React.createElement("table",{style:{width:"100%",borderCollapse:"collapse",fontSize:10}},
+            React.createElement("thead",{style:{position:"sticky",top:0,background:"#0e0e18"}},
+              React.createElement("tr",{style:{borderBottom:"1px solid #252535"}},
+                ["Date","Total","Tanker","Cargo","7d MA"].map(h=>
+                  React.createElement("th",{key:h,style:{padding:"4px 5px",textAlign:"right",color:"#4a5060",fontWeight:500}},h)))),
+            React.createElement("tbody",null,
+              withMA.slice(-30).map((d,i)=>
+                React.createElement("tr",{key:i,style:{borderBottom:"1px solid #14141e",
+                  background:d.n_total===0?"rgba(239,68,68,0.04)":"transparent"}},
+                  React.createElement("td",{style:{padding:"3px 5px",textAlign:"right",color:"#707888"}},d.short),
+                  React.createElement("td",{style:{padding:"3px 5px",textAlign:"right",color:d.n_total===0?"#ef4444":"#4ee8c4",fontWeight:700}},d.n_total),
+                  React.createElement("td",{style:{padding:"3px 5px",textAlign:"right",color:"#505868"}},d.n_tanker),
+                  React.createElement("td",{style:{padding:"3px 5px",textAlign:"right",color:"#505868"}},d.n_cargo),
+                  React.createElement("td",{style:{padding:"3px 5px",textAlign:"right",color:"#f0a030",fontWeight:700}},
+                    d.ma7!==null?d.ma7.toFixed(2):"-"))))))),
+
+      tab==="decay"&&React.createElement("div",null,
+        React.createElement("div",{style:{fontSize:9,color:"#4a5060",marginBottom:6}},
+          "Ramp viability = can the MA physically reach 60 if a deal is signed that day? Drops <50% ~Jun 14."),
+        React.createElement(ResponsiveContainer,{width:"100%",height:240},
+          React.createElement(ComposedChart,{data:decay,margin:{top:5,right:5,left:-18,bottom:0}},
+            React.createElement(CartesianGrid,{strokeDasharray:"2 4",stroke:"#14141e"}),
+            React.createElement(XAxis,{dataKey:"date",tick:{fill:"#2a3040",fontSize:9},interval:3}),
+            React.createElement(YAxis,{tick:{fill:"#2a3040",fontSize:9},domain:[0,18],yAxisId:"l"}),
+            React.createElement(YAxis,{tick:{fill:"#2a3040",fontSize:9},domain:[0,16],yAxisId:"r",orientation:"right"}),
+            React.createElement(Tooltip,{content:React.createElement(Tip)}),
+            React.createElement(Area,{type:"monotone",dataKey:"profit",fill:"#10b981",fillOpacity:0.06,stroke:"none",yAxisId:"r"}),
+            React.createElement(Line,{type:"monotone",dataKey:"yesEst",stroke:"#ef4444",strokeWidth:2,dot:false,name:"Yes (c)",yAxisId:"l"}),
+            React.createElement(Line,{type:"monotone",dataKey:"profit",stroke:"#10b981",strokeWidth:2,dot:false,name:"Profit (c/sh)",yAxisId:"r"}),
+            React.createElement(ReferenceLine,{y:8,yAxisId:"r",stroke:"#f0a030",strokeDasharray:"3 3"}))),
+        React.createElement("div",{style:{overflowX:"auto",marginTop:8}},
+          React.createElement("table",{style:{width:"100%",borderCollapse:"collapse",fontSize:10}},
+            React.createElement("thead",null,
+              React.createElement("tr",{style:{borderBottom:"1px solid #252535"}},
+                ["Date","Left","Yes","No","P/L","Ret%","Ramp%"].map(h=>
+                  React.createElement("th",{key:h,style:{padding:"3px 4px",textAlign:"right",color:"#4a5060",fontWeight:500}},h)))),
+            React.createElement("tbody",null,
+              decay.filter((_,i)=>i%3===0||i===decay.length-1).map((d,i)=>
+                React.createElement("tr",{key:i,style:{borderBottom:"1px solid #14141e"}},
+                  React.createElement("td",{style:{padding:"2px 4px",textAlign:"right",color:"#707888"}},d.date),
+                  React.createElement("td",{style:{padding:"2px 4px",textAlign:"right",color:"#505868"}},d.daysLeft),
+                  React.createElement("td",{style:{padding:"2px 4px",textAlign:"right",color:"#ef4444"}},d.yesEst+"c"),
+                  React.createElement("td",{style:{padding:"2px 4px",textAlign:"right",color:"#4ee8c4"}},d.noEst+"c"),
+                  React.createElement("td",{style:{padding:"2px 4px",textAlign:"right",color:"#10b981",fontWeight:700}},d.profit+"c"),
+                  React.createElement("td",{style:{padding:"2px 4px",textAlign:"right",color:"#707888"}},d.profitPct+"%"),
+                  React.createElement("td",{style:{padding:"2px 4px",textAlign:"right",
+                    color:parseInt(d.ramp)>50?"#f0a030":"#10b981"}},d.ramp+"%"))))))),
+
+      tab==="trade"&&React.createElement("div",null,
+        React.createElement("div",{style:{fontSize:13,fontWeight:700,color:"#e0e4ea",marginBottom:10}},"Trade plan"),
+        React.createElement("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:14}},
+          ...[{l:"Shares",v:"2,380",c:"#4ee8c4"},{l:"Cost",v:"$1,999",c:"#c0c8d4"},{l:"Max P/L",v:"$381",c:"#10b981"}].map(x=>
+            React.createElement("div",{key:x.l,style:{textAlign:"center"}},
+              React.createElement("div",{style:s.lbl},x.l),
+              React.createElement("div",{style:{fontSize:16,fontWeight:700,color:x.c}},x.v)))),
+        ...[{p:"50%",bid:"92c limit",pl:"$190",ret:"9.5%",hold:"~2.5 wks",c:"#f0a030"},
+          {p:"75%",bid:"96c limit",pl:"$286",ret:"14.3%",hold:"~3 wks",c:"#4ee8c4"},
+          {p:"100%",bid:"$1 resolve",pl:"$381",ret:"19.0%",hold:daysLeft+"d",c:"#10b981"}].map(t=>
+          React.createElement("div",{key:t.p,style:{display:"grid",gridTemplateColumns:"44px 1fr 1fr 1fr",
+            padding:"7px 8px",borderLeft:`2px solid ${t.c}`,background:"#0a0a10",marginBottom:5,borderRadius:2,alignItems:"center"}},
+            React.createElement("div",{style:{fontSize:13,fontWeight:700,color:t.c}},t.p),
+            React.createElement("div",null,React.createElement("span",{style:{fontSize:8,color:"#4a5060"}},"EXIT "),t.bid),
+            React.createElement("div",null,React.createElement("span",{style:{fontSize:8,color:"#4a5060"}},"P/L "),
+              React.createElement("span",{style:{color:t.c,fontWeight:700}},t.pl)),
+            React.createElement("div",null,React.createElement("span",{style:{fontSize:8,color:"#4a5060"}},"HOLD "),
+              React.createElement("span",{style:{color:"#707888"}},t.hold)))),
+        React.createElement("div",{style:{marginTop:14,padding:8,background:"#0a0a10",borderRadius:3,fontSize:10,color:"#707888",lineHeight:1.7}},
+          React.createElement("b",{style:{color:"#c0c8d4"}},"Why the data supports No: "),
+          `Current 7d MA of ${latestMA.ma7.toFixed(2)} is ${((1-latestMA.ma7/60)*100).toFixed(0)}% below the 60 threshold. `,
+          `Crisis peak MA was only ${peakMA.toFixed(2)}. Best single day was 29 ships. `,
+          `To hit 60, need 60/day sustained for 7 straight days. Never happened in 96 days of crisis.`))
+    ),
+    React.createElement("div",{style:{fontSize:8,color:"#1a2030",marginTop:8,textAlign:"center"}},
+      `Source: IMF PortWatch CHOKEPOINT6 | Data through ${latestDay.short} | Updates Tue 9am ET`));
+}
+
+ReactDOM.render(React.createElement(App),document.getElementById("root"));
+</script>
+</body>
+</html>
