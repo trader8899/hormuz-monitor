@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hormuz Transit Monitor</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;700&display=swap');
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0a0a12;color:#b0b8c4;font-family:'IBM Plex Mono',monospace;font-size:12px;min-height:100vh}
+#app{max-width:880px;margin:0 auto;padding:16px}
+.header-label{font-size:8px;letter-spacing:.2em;color:#3a4050;text-transform:uppercase}
+.header-title{font-size:16px;font-weight:700;color:#e0e4ea;margin-top:3px;margin-bottom:14px}
+.grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:6px}
+.grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:14px}
+.stat-card{background:#0e0e18;border:1px solid #1a1a2a;border-radius:3px;padding:10px}
+.stat-label{font-size:8px;color:#4a5060;text-transform:uppercase;letter-spacing:.12em;font-weight:500}
+.stat-value{font-size:17px;font-weight:700;margin-top:2px}
+.stat-sub{font-size:8px;color:#3a4050;margin-top:1px}
+.tabs{display:flex;gap:1px;border-bottom:1px solid #1a1a2a;margin-top:4px}
+.tab{font-family:'IBM Plex Mono',monospace;font-size:10px;padding:5px 14px;cursor:pointer;background:transparent;border:1px solid transparent;border-bottom:1px solid #1a1a2a;border-radius:3px 3px 0 0;color:#3a4050;margin-bottom:-1px;position:relative;transition:color .15s}
+.tab.active{background:#0e0e18;border-color:#1a1a2a;border-bottom-color:#0e0e18;color:#4ee8c4}
+.panel{background:#0e0e18;border:1px solid #1a1a2a;border-top:none;border-radius:0 3px 3px 3px;padding:12px;display:none}
+.panel.active{display:block}
+.panel-note{font-size:9px;color:#4a5060;margin-bottom:8px;line-height:1.5}
+canvas{max-width:100%}
+table{width:100%;border-collapse:collapse;font-size:10px}
+th{padding:4px 5px;text-align:right;color:#4a5060;font-weight:500;border-bottom:1px solid #252535}
+td{padding:3px 5px;text-align:right;border-bottom:1px solid #14141e}
+.exit-row{display:grid;grid-template-columns:44px 1fr 1fr 1fr;padding:7px 8px;border-radius:2px;margin-bottom:5px;align-items:center;background:#0a0a10}
+.exit-label-sm{font-size:8px;color:#4a5060}
+.insight{margin-top:10px;padding:8px;background:#0a0a10;border-radius:3px;font-size:10px;color:#707888;line-height:1.7}
+.risk-box{margin-top:12px;padding:8px;background:#180a0a;border:1px solid #301515;border-radius:3px;font-size:10px;color:#c09090;line-height:1.6}
+.footer{font-size:8px;color:#1a2030;margin-top:10px;text-align:center}
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="header-label">IMF PortWatch CHOKEPOINT6 &nbsp;/&nbsp; Polymarket Jun 30 No</div>
+  <div class="header-title">Hormuz Transit Monitor</div>
+  <div class="grid-4" id="stats-row1"></div>
+  <div class="grid-3" id="stats-row2"></div>
+  <div class="tabs">
+    <button class="tab active" onclick="showTab('chart',this)">Chart</button>
+    <button class="tab" onclick="showTab('table',this)">Data</button>
+    <button class="tab" onclick="showTab('decay',this)">Decay</button>
+    <button class="tab" onclick="showTab('trade',this)">Trade</button>
+  </div>
+  <div class="panel active" id="panel-chart">
+    <div class="panel-note">Daily transits (teal bars) and 7-day MA (amber line). Red dashed = 60 resolution threshold.</div>
+    <canvas id="mainChart" height="280"></canvas>
+    <div class="insight" id="chart-insight"></div>
+  </div>
+  <div class="panel" id="panel-table">
+    <div class="panel-note">Last 30 days from IMF PortWatch resolution source. Zero-transit days highlighted.</div>
+    <div style="overflow-x:auto;max-height:400px;overflow-y:auto">
+      <table><thead><tr><th>Date</th><th>Total</th><th>Tanker</th><th>Cargo</th><th>7d MA</th></tr></thead>
+      <tbody id="data-table"></tbody></table>
+    </div>
+  </div>
+  <div class="panel" id="panel-decay">
+    <div class="panel-note">Yes price decay and No profit accumulation. Ramp viability = probability MA can physically reach 60 if deal signed that day. Drops below 50% ~Jun 14.</div>
+    <canvas id="decayChart" height="220"></canvas>
+    <div style="overflow-x:auto;margin-top:8px">
+      <table><thead><tr><th>Date</th><th>Left</th><th>Yes</th><th>No</th><th>Profit</th><th>Ret%</th><th>Ramp%</th></tr></thead>
+      <tbody id="decay-table"></tbody></table>
+    </div>
+  </div>
+  <div class="panel" id="panel-trade">
+    <div style="font-size:13px;font-weight:700;color:#e0e4ea;margin-bottom:12px">Trade Plan — $2,000 deployment</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:14px;text-align:center">
+      <div><div class="stat-label">Shares</div><div class="stat-value" style="color:#4ee8c4">2,380</div></div>
+      <div><div class="stat-label">Cost</div><div class="stat-value" style="color:#c0c8d4">$1,999</div></div>
+      <div><div class="stat-label">Max profit</div><div class="stat-value" style="color:#10b981">$381</div></div>
+    </div>
+    <div class="exit-row" style="border-left:2px solid #f0a030">
+      <div style="font-size:13px;font-weight:700;color:#f0a030">50%</div>
+      <div><span class="exit-label-sm">EXIT </span>limit 92c</div>
+      <div><span class="exit-label-sm">P/L </span><span style="color:#f0a030;font-weight:700">$190</span></div>
+      <div><span class="exit-label-sm">HOLD </span><span style="color:#707888">~2.5 wks</span></div>
+    </div>
+    <div class="exit-row" style="border-left:2px solid #4ee8c4">
+      <div style="font-size:13px;font-weight:700;color:#4ee8c4">75%</div>
+      <div><span class="exit-label-sm">EXIT </span>limit 96c</div>
+      <div><span class="exit-label-sm">P/L </span><span style="color:#4ee8c4;font-weight:700">$286</span></div>
+      <div><span class="exit-label-sm">HOLD </span><span style="color:#707888">~3 wks</span></div>
+    </div>
+    <div class="exit-row" style="border-left:2px solid #10b981">
+      <div style="font-size:13px;font-weight:700;color:#10b981">100%</div>
+      <div><span class="exit-label-sm">EXIT </span>resolve $1</div>
+      <div><span class="exit-label-sm">P/L </span><span style="color:#10b981;font-weight:700">$381</span></div>
+      <div><span class="exit-label-sm">HOLD </span><span style="color:#707888" id="days-left-str"></span></div>
+    </div>
+    <div class="insight" id="trade-insight"></div>
+    <div class="risk-box"><strong style="color:#ef4444">Risks: </strong>Surprise deal + immediate mine clearance. IMF data revision within timeframe. AIS dark ships appearing in data. Trump headline spike (hold through — temporary). Order book thinning in final 48h. Always use limit orders, never market orders.</div>
+  </div>
+  <div class="footer" id="footer"></div>
+</div>
+<script>
+const RAW=[
+["2026-02-01",80,37,43],["2026-02-02",90,55,35],["2026-02-03",83,45,38],["2026-02-04",77,43,34],
+["2026-02-05",89,46,43],["2026-02-06",82,50,32],["2026-02-07",90,48,42],["2026-02-08",90,49,41],
+["2026-02-09",66,41,25],["2026-02-10",95,59,36],["2026-02-11",82,46,36],["2026-02-12",119,55,64],
+["2026-02-13",110,64,46],["2026-02-14",99,58,41],["2026-02-15",87,50,37],["2026-02-16",95,60,35],
+["2026-02-17",91,43,48],["2026-02-18",113,52,61],["2026-02-19",115,62,53],["2026-02-20",90,54,36],
+["2026-02-21",94,54,40],["2026-02-22",129,72,57],["2026-02-23",103,62,41],["2026-02-24",107,55,52],
+["2026-02-25",109,58,51],["2026-02-26",102,53,49],["2026-02-27",95,53,42],["2026-02-28",76,44,32],
+["2026-03-01",17,7,10],["2026-03-02",4,2,2],["2026-03-03",5,2,3],["2026-03-04",3,0,3],
+["2026-03-05",4,1,3],["2026-03-06",5,0,5],["2026-03-07",7,2,5],["2026-03-08",6,1,5],
+["2026-03-09",9,6,3],["2026-03-10",4,1,3],["2026-03-11",5,1,4],["2026-03-12",8,3,5],
+["2026-03-13",3,3,0],["2026-03-14",3,1,2],["2026-03-15",9,5,4],["2026-03-16",4,0,4],
+["2026-03-17",2,1,1],["2026-03-18",1,0,1],["2026-03-19",3,1,2],["2026-03-20",6,3,3],
+["2026-03-21",0,0,0],["2026-03-22",3,0,3],["2026-03-23",4,2,2],["2026-03-24",2,1,1],
+["2026-03-25",1,1,0],["2026-03-26",5,0,5],["2026-03-27",3,0,3],["2026-03-28",4,0,4],
+["2026-03-29",5,2,3],["2026-03-30",17,12,5],["2026-03-31",6,2,4],
+["2026-04-01",6,0,6],["2026-04-02",6,2,4],["2026-04-03",5,4,1],["2026-04-04",10,2,8],
+["2026-04-05",9,7,2],["2026-04-06",5,1,4],["2026-04-07",4,3,1],["2026-04-08",4,0,4],
+["2026-04-09",9,4,5],["2026-04-10",5,1,4],["2026-04-11",11,5,6],["2026-04-12",8,3,5],
+["2026-04-13",11,4,7],["2026-04-14",10,3,7],["2026-04-15",10,4,6],["2026-04-16",6,3,3],
+["2026-04-17",14,4,10],["2026-04-18",29,16,13],["2026-04-19",4,2,2],["2026-04-20",7,4,3],
+["2026-04-21",3,1,2],["2026-04-22",7,2,5],["2026-04-23",2,0,2],["2026-04-24",8,2,6],
+["2026-04-25",5,1,4],["2026-04-26",5,1,4],["2026-04-27",3,1,2],["2026-04-28",11,3,8],
+["2026-04-29",6,3,3],["2026-04-30",5,3,2],
+["2026-05-01",6,2,4],["2026-05-02",4,2,2],["2026-05-03",5,1,4],["2026-05-04",3,0,3],
+["2026-05-05",1,0,1],["2026-05-06",0,0,0],["2026-05-07",2,1,1],["2026-05-08",0,0,0],
+["2026-05-09",1,1,0],["2026-05-10",4,2,2],["2026-05-11",7,3,4],["2026-05-12",7,3,4],
+["2026-05-13",7,4,3],["2026-05-14",7,4,3],["2026-05-15",4,2,2],["2026-05-16",10,2,8],
+["2026-05-17",2,0,2],["2026-05-18",2,1,1],["2026-05-19",6,4,2],["2026-05-20",12,4,8],
+["2026-05-21",4,2,2],["2026-05-22",5,0,5],["2026-05-23",9,4,5],["2026-05-24",4,2,2],
+["2026-05-25",6,2,4],["2026-05-26",2,0,2],["2026-05-27",5,2,3],["2026-05-28",3,0,3],
+["2026-05-29",3,1,2],["2026-05-30",4,0,4],["2026-05-31",10,2,8],
+["2026-06-01",5,1,4],["2026-06-02",10,4,6],["2026-06-03",10,3,7],
+["2026-06-04",3,1,2],["2026-06-05",3,1,2],["2026-06-06",3,1,2],
+["2026-06-07",2,1,1],["2026-06-08",8,1,7],["2026-06-09",4,2,2],
+["2026-06-10",2,0,2],["2026-06-11",2,2,0],["2026-06-12",2,1,1],
+["2026-06-13",0,0,0],["2026-06-14",0,0,0],
+];
+
+const parsed=RAW.map(([date,n_total,n_tanker,n_cargo])=>({date,n_total,n_tanker,n_cargo,
+  short:new Date(date+"T12:00:00").toLocaleDateString("en-NZ",{month:"short",day:"numeric"})}));
+const withMA=parsed.map((d,i)=>{
+  if(i<6)return{...d,ma7:null};
+  const s=parsed.slice(i-6,i+1).reduce((a,x)=>a+x.n_total,0);
+  return{...d,ma7:Math.round(s/7*100)/100};
+});
+const preC=parsed.filter(d=>d.date>="2026-02-01"&&d.date<="2026-02-27");
+const preAvg=Math.round(preC.reduce((s,d)=>s+d.n_total,0)/preC.length*10)/10;
+const postStrike=withMA.filter(d=>d.date>="2026-03-01");
+const validMAs=postStrike.filter(d=>d.ma7!==null);
+const peakMA=Math.max(...validMAs.map(d=>d.ma7));
+const peakD=validMAs.find(d=>d.ma7===peakMA);
+const latestMA=withMA.filter(d=>d.ma7!==null).slice(-1)[0];
+const latestDay=parsed.slice(-1)[0];
+const zeroDays=postStrike.filter(d=>d.n_total===0);
+const crisis=withMA.filter(d=>d.date>="2026-02-20");
+const deadline=new Date("2026-06-30T23:59:59Z");
+const daysLeft=Math.max(0,Math.ceil((deadline-new Date())/86400000));
+
+function buildDecay(){
+  const pts=[];
+  for(let d=0;d<=daysLeft;d++){
+    const left=daysLeft-d;
+    const ramp=1/(1+Math.exp(-0.5*(left-16)));
+    const yes=Math.max(1,Math.round(17*ramp*(left/Math.max(daysLeft,1))));
+    const no=Math.min(99,100-yes);
+    const profit=Math.max(0,no-84);
+    const dt=new Date();dt.setDate(dt.getDate()+d);
+    pts.push({day:d,date:`${dt.getDate()}/${dt.getMonth()+1}`,daysLeft:left,
+      yesEst:yes,noEst:no,profit,profitPct:((profit/84)*100).toFixed(1),ramp:(ramp*100).toFixed(0)});
+  }
+  return pts;
+}
+const decay=buildDecay();
+
+function statCard(label,value,color,sub){
+  return`<div class="stat-card"><div class="stat-label">${label}</div><div class="stat-value" style="color:${color}">${value}</div>${sub?`<div class="stat-sub">${sub}</div>`:""}</div>`;
+}
+document.getElementById("stats-row1").innerHTML=
+  statCard("Latest daily",latestDay.n_total,"#4ee8c4",latestDay.short)+
+  statCard("7-day MA",latestMA.ma7.toFixed(2),"#ef4444",latestMA.short)+
+  statCard("Target / Gap","60.00","#606878",`${(60-latestMA.ma7).toFixed(1)} ships below`)+
+  statCard("Days left",daysLeft,"#f0a030","to Jun 30");
+document.getElementById("stats-row2").innerHTML=
+  statCard("Pre-crisis avg",preAvg,"#606878","Feb 1-27")+
+  statCard("Crisis peak MA",peakMA.toFixed(2),"#f0a030",peakD?peakD.short:"")+
+  statCard("Zero-transit days",zeroDays.length,"#ef4444","since Mar 1");
+
+new Chart(document.getElementById("mainChart"),{
+  data:{labels:crisis.map(d=>d.short),datasets:[
+    {type:"bar",label:"Daily",data:crisis.map(d=>d.n_total),backgroundColor:"rgba(78,232,196,0.2)",borderColor:"rgba(78,232,196,0.5)",borderWidth:1,order:2},
+    {type:"line",label:"7-day MA",data:crisis.map(d=>d.ma7),borderColor:"#f0a030",borderWidth:2,pointRadius:0,tension:0.3,spanGaps:true,order:1},
+  ]},
+  options:{responsive:true,plugins:{
+    legend:{labels:{color:"#4a5060",font:{family:"'IBM Plex Mono',monospace",size:10},boxWidth:10}},
+    tooltip:{backgroundColor:"#0e0e16",titleColor:"#606878",bodyColor:"#b0b8c4",
+      titleFont:{family:"'IBM Plex Mono',monospace"},bodyFont:{family:"'IBM Plex Mono',monospace",size:10}},
+    annotation:{drawTime:"afterDatasetsDraw",annotations:{line60:{type:"line",yMin:60,yMax:60,
+      borderColor:"#ef4444",borderWidth:1.5,borderDash:[6,3],
+      label:{display:true,content:"60 — threshold",color:"#ef4444",font:{size:9,family:"'IBM Plex Mono',monospace"},position:"end"}}}}
+  },scales:{
+    x:{ticks:{color:"#2a3040",font:{size:9},maxRotation:50,maxTicksLimit:12},grid:{color:"#14141e"}},
+    y:{ticks:{color:"#2a3040",font:{size:9}},grid:{color:"#14141e"},min:0,max:140}
+  }}
+});
+
+document.getElementById("chart-insight").innerHTML=
+  `<b style="color:#c0c8d4">From resolution source data:</b> 7d MA has never exceeded <b>${peakMA.toFixed(2)}</b> in 96 days. `+
+  `Needs <b>60.00</b> — a ${(60/peakMA).toFixed(1)}x increase from peak. `+
+  `Highest single day: 29 (Apr 18). ${zeroDays.length} days of zero transits recorded.`;
+
+document.getElementById("data-table").innerHTML=withMA.slice(-30).map(d=>`<tr>
+  <td style="color:#707888;text-align:right">${d.short}</td>
+  <td style="color:${d.n_total===0?"#ef4444":"#4ee8c4"};font-weight:700;text-align:right">${d.n_total}</td>
+  <td style="color:#505868;text-align:right">${d.n_tanker}</td>
+  <td style="color:#505868;text-align:right">${d.n_cargo}</td>
+  <td style="color:#f0a030;font-weight:700;text-align:right">${d.ma7!==null?d.ma7.toFixed(2):"–"}</td>
+</tr>`).join("");
+
+new Chart(document.getElementById("decayChart"),{
+  data:{labels:decay.map(d=>d.date),datasets:[
+    {type:"line",label:"Yes est (c)",data:decay.map(d=>d.yesEst),borderColor:"#ef4444",borderWidth:2,pointRadius:0,tension:0.3,yAxisID:"y"},
+    {type:"line",label:"Profit c/sh",data:decay.map(d=>d.profit),borderColor:"#10b981",borderWidth:2,pointRadius:0,tension:0.3,fill:true,backgroundColor:"rgba(16,185,129,0.06)",yAxisID:"y2"},
+  ]},
+  options:{responsive:true,plugins:{
+    legend:{labels:{color:"#4a5060",font:{family:"'IBM Plex Mono',monospace",size:10},boxWidth:10}},
+    tooltip:{backgroundColor:"#0e0e16",titleColor:"#606878",bodyColor:"#b0b8c4",
+      titleFont:{family:"'IBM Plex Mono',monospace"},bodyFont:{family:"'IBM Plex Mono',monospace",size:10}},
+    annotation:{annotations:{line8:{type:"line",yMin:8,yMax:8,yScaleID:"y2",borderColor:"#f0a030",borderWidth:1,borderDash:[3,3],
+      label:{display:true,content:"50% target",color:"#f0a030",font:{size:8,family:"'IBM Plex Mono',monospace"},position:"start"}}}}
+  },scales:{
+    x:{ticks:{color:"#2a3040",font:{size:9},maxTicksLimit:10},grid:{color:"#14141e"}},
+    y:{ticks:{color:"#ef4444",font:{size:9}},grid:{color:"#14141e"},min:0,max:18,title:{display:true,text:"Yes (c)",color:"#4a5060",font:{size:8}}},
+    y2:{position:"right",ticks:{color:"#10b981",font:{size:9}},grid:{drawOnChartArea:false},min:0,max:16,title:{display:true,text:"Profit c/sh",color:"#4a5060",font:{size:8}}}
+  }}
+});
+
+document.getElementById("decay-table").innerHTML=
+  decay.filter((_,i)=>i%3===0||i===decay.length-1).map(d=>`<tr>
+    <td style="color:#707888;text-align:right">${d.date}</td>
+    <td style="color:#505868;text-align:right">${d.daysLeft}</td>
+    <td style="color:#ef4444;text-align:right">${d.yesEst}c</td>
+    <td style="color:#4ee8c4;text-align:right">${d.noEst}c</td>
+    <td style="color:#10b981;font-weight:700;text-align:right">${d.profit}c</td>
+    <td style="color:#707888;text-align:right">${d.profitPct}%</td>
+    <td style="color:${parseInt(d.ramp)>50?"#f0a030":"#10b981"};text-align:right">${d.ramp}%</td>
+  </tr>`).join("");
+
+document.getElementById("days-left-str").textContent=`${daysLeft} days`;
+document.getElementById("trade-insight").innerHTML=
+  `7d MA of <b style="color:#ef4444">${latestMA.ma7.toFixed(2)}</b> is `+
+  `<b style="color:#ef4444">${((1-latestMA.ma7/60)*100).toFixed(0)}%</b> below threshold. `+
+  `Crisis peak was only <b>${peakMA.toFixed(2)}</b>. Best single day: 29. `+
+  `Sustained 60/day for 7 days has never occurred in 96 days. `+
+  `<b>Enter with a limit buy at 84c (maker — zero fee). Exit with limit sell at 92c (maker — zero fee).</b>`;
+
+document.getElementById("footer").textContent=
+  `Source: IMF PortWatch CHOKEPOINT6 | Data through ${latestDay.short} | Updates Tue 9am ET`;
+
+function showTab(id,btn){
+  document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
+  document.querySelectorAll(".panel").forEach(p=>p.classList.remove("active"));
+  btn.classList.add("active");
+  document.getElementById("panel-"+id).classList.add("active");
+}
+</script>
+</body>
+</html>
